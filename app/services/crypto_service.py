@@ -1,24 +1,45 @@
 import requests
 from decouple import config
 from fastapi import HTTPException
-from app.models.Crypto_models.DataModel_crypto import data_asks_bids, Data_crypto
+from app.models.Crypto_models.DataModel_crypto import data_asks_bids, Data_crypto, recent_trades_object, \
+    recent_trades_crypto_final, data_asks_bids_endpoint
 
-CRYPTO_URL = config("URL_CRYPTO", default="https://api.kraken.com/0/public/Depth")
+CRYPTO_URL = config("URL_CRYPTO", default="https://api.kraken.com/0/public")
 
-def get_crypto_pair_data(symbol: str):
+def build_url(endpoint: str):
+    return f"{"/".join([CRYPTO_URL, endpoint])}"
+
+def config_kraken(symbol: str, url: str):
+    params={ 'pair': symbol}
+    hearders= {'accept': 'application/json'}
+    payload= {}
+    request_timeout= 10
+    return requests.get(url=url, params=params,headers=hearders,
+                        data=payload, timeout=request_timeout)
+
+
+def get_crypto_pair_data_depth(symbol: str) -> data_asks_bids_endpoint:
+
+    '''
+    Renvoir la endpoint kraken Order book ordre de commande
+    :param: symbol / contient les pairs crypto visées
+    :return: une instance du model pydantic data_asks_bids contenant asks/bids les objets /
+    qui contiennent les données(les données récupérés) de la classe Data_crypto
+    ->
+    l'offre/demande de la crypto
+    '''
+
     try:
-        url = f"{CRYPTO_URL}"
-        params = {"pair": symbol}
-        headers = {'accept': 'application/json'}
-        payload = {}
-        request_timeout = 10
-        response = requests.get(url, headers=headers, params=params,
-                                data=payload, timeout=request_timeout)
-        response.raise_for_status()
-        data = response.json()
 
-        print(f"statut de la reponse : {response.status_code}")
-        print(f"reponse brute : {response.text}")
+       ## Innitialisation des variables necessaire au réquettage de l'api de kraken - endpoint "order bokk"
+
+        url= build_url("Depth")
+        reponses = config_kraken(symbol, url= url)
+        reponses.raise_for_status()
+        data = reponses.json()
+
+        print(f"statut de la reponse : {reponses.status_code}")
+        print(f"reponse brute : {reponses.text}")
 
         if data.get("error") and len(data["error"]) > 0:
             return f"erreur dans data: {data['error']}"
@@ -62,7 +83,13 @@ def get_crypto_pair_data(symbol: str):
                 asks= instance_data_ask,
                 bids= instance_data_bid
             )
-            return instance_data_asks_bids.dict()
+
+            '''Instance de la classe data_asks_bids_endpoint qui contient une instance
+             de la classe data_asks_bids plus le nom de la endpoint kraken '''
+            instance_data_asks_bids_with_endpoint= data_asks_bids_endpoint(
+                Data_endpoint_order_book= instance_data_asks_bids
+            )
+            return instance_data_asks_bids_with_endpoint.dict()
 
         raise HTTPException(
             status_code=500,
@@ -71,3 +98,73 @@ def get_crypto_pair_data(symbol: str):
 
     except requests.exceptions.RequestException as e:
         return f"probleme à l'appel de l'api de kraken : {str(e)}"
+
+
+def get_crypto_data_recent_trades(symbol: str) -> recent_trades_crypto_final:
+
+    '''
+    Renvoie la endpoint "recent trades" de kraken
+    :param symbol pairs de crypto ciblé
+    :return: Me renvoie une instance de la classe recent_trades_crypto_final contenant nos données
+    '''
+
+
+    try:
+
+        url= build_url("Trades")
+        reponses= config_kraken(symbol, url= url)
+         ## récuperer le code de reponse après le requetage de l'api 200, 404
+        reponse= reponses.json()
+
+
+        print("------------------------------------------------------------------------")
+        print(f">>> reponses status : {reponses.status_code}")
+        print("------------------------------------------------------------------------")
+        print(f">>> reponses : {reponses.text}")
+
+        if isinstance(reponse.get("error"), list) and len(reponse.get("error")) > 0:
+            raise HTTPException()
+        ## si le status de la reponse est 200 et que l'objet reponse contient une clé result
+        if reponse.get("result"):
+            couple_crypto= list(reponse.get("result").keys())[0]
+            data_recent_trades= reponse.get("result").get(couple_crypto)
+
+        nb_colonnes = len(data_recent_trades[0])
+
+        ## crée une dictionnaire de comprehension pour recupérer plus preprement les données avec le nom
+        data_recent_trades_dict= {str(i): [] for i in range(nb_colonnes)}
+
+        for liste_data in data_recent_trades:
+            for index, valeur in enumerate(liste_data):
+                data_recent_trades_dict[str(index)].append(valeur)
+
+        ## Les variables ci, contiennent les données en forme de liste pour etre stocké dans l'instance des classes pour une meilleur structure
+
+        price= data_recent_trades_dict["0"]
+        volume= data_recent_trades_dict["1"]
+        temps= data_recent_trades_dict["2"]
+        order_type= data_recent_trades_dict["3"]
+        market_limit= data_recent_trades_dict["4"]
+        miscellaneous= data_recent_trades_dict["5"]
+        trade_id= data_recent_trades_dict["6"]
+
+
+        ## Instance des classes recent_trades_object pour le stockage des données et recent_trades_data_final pour le stockage en format dict
+
+        instance_recent_trades_object= recent_trades_object(
+            couple_crypto= couple_crypto,
+            Price= price,
+            volume= volume,
+            temps= temps,
+            order_type= order_type,
+            market_limit= market_limit,
+            miscellaneous= miscellaneous,
+            trade_id= trade_id)
+
+        instance_recent_trades_data_final= recent_trades_crypto_final(
+            Data_endpoint_recent_trades= instance_recent_trades_object
+        )
+        return instance_recent_trades_data_final.dict()
+    except requests.exceptions.RequestException as e:
+        str(f"{e}")
+

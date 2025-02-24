@@ -1,0 +1,50 @@
+/votre-projet
+│
+├── app/
+│   ├── __init__.py
+│   ├── main.py
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── crypto_service.py
+│   │   └── weather_service.py
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── crypto_models.py
+│   │   └── weather_models.py
+│   ├── routers/
+│   │   ├── __init__.py
+│   │   ├── crypto_router.py
+│   │   └── weather_router.py
+│   └── utils/
+│       ├── __init__.py
+│       └── helpers.py
+│
+├── kafka/
+│   ├── producer.py
+│   └── consumer.py
+│
+├── spark/
+│   ├── process_crypto_data.py
+│   └── process_weather_data.py
+│
+├── bigquery/
+│   ├── schema_crypto.sql
+│   └── schema_weather.sql
+│
+├── metabase/
+│   └── dashboard_setup.py
+│
+├── airflow/
+│   ├── dags/
+│   │   └── pipeline_dag.py
+│   └── config/
+│       └── airflow.cfg
+│
+├── tests/
+│   ├── test_crypto_service.py
+│   ├── test_weather_service.py
+│   └── test_endpoints.py
+│
+├── requirements.txt
+├── README.md
+└── .env
