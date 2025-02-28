@@ -14,7 +14,7 @@ class data_asks_bids(BaseModel):
 class data_asks_bids_endpoint(BaseModel):
     Data_endpoint_order_book: data_asks_bids
 
-'''
+''' 
    Les models pour la endpoint recent trades de l'API de kraken
 '''
 ## cette classe va créer un objet qui va contenir les données
@@ -31,3 +31,16 @@ class recent_trades_object(BaseModel):
 ## cette classe va créer un objet qui va contenir l'objet qui contient nos données et le nom des couples de crypto
 class recent_trades_crypto_final(BaseModel):
     Data_endpoint_recent_trades: recent_trades_object
+
+"""
+ Les models pour la endpoint spread de l'API de kraken
+"""
+
+class data_spread_object(BaseModel):
+    couple_crypto: str
+    temps: List[int]
+    bid: List[float]
+    ask: List[float]
+
+class data_spread_final(BaseModel):
+    Data_endpoint_spread: data_spread_object

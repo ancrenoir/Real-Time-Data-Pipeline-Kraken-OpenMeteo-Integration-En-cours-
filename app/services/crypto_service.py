@@ -2,7 +2,7 @@ import requests
 from decouple import config
 from fastapi import HTTPException
 from app.models.Crypto_models.DataModel_crypto import data_asks_bids, Data_crypto, recent_trades_object, \
-    recent_trades_crypto_final, data_asks_bids_endpoint
+    recent_trades_crypto_final, data_asks_bids_endpoint, data_spread_object, data_spread_final
 
 CRYPTO_URL = config("URL_CRYPTO", default="https://api.kraken.com/0/public")
 
@@ -11,10 +11,10 @@ def build_url(endpoint: str):
 
 def config_kraken(symbol: str, url: str):
     params={ 'pair': symbol}
-    hearders= {'accept': 'application/json'}
+    headers= {'accept': 'application/json'}
     payload= {}
     request_timeout= 10
-    return requests.get(url=url, params=params,headers=hearders,
+    return requests.get(url=url, params=params,headers=headers,
                         data=payload, timeout=request_timeout)
 
 
@@ -56,6 +56,8 @@ def get_crypto_pair_data_depth(symbol: str) -> data_asks_bids_endpoint:
             for liste_data in data_asks:
                 for index, valeur in enumerate(liste_data):
                     dictionnaire_asks[str(index)].append(valeur)
+            for liste_data in data_bids:
+                for index, valeur in enumerate(liste_data):
                     dictionnaire_bids[str(index)].append(valeur)
 
 
@@ -164,7 +166,66 @@ def get_crypto_data_recent_trades(symbol: str) -> recent_trades_crypto_final:
         instance_recent_trades_data_final= recent_trades_crypto_final(
             Data_endpoint_recent_trades= instance_recent_trades_object
         )
-        return instance_recent_trades_data_final.dict()
+        return instance_recent_trades_data_final.model_dump()
+    except requests.exceptions.RequestException as e:
+        str(f"{e}")
+
+def get_crypto_data_Spreads(symbol: str) -> data_spread_final:
+    try:
+        url= build_url("Spread")
+        reponses= config_kraken(symbol= symbol, url= url)
+        reponse= reponses.json()
+
+        '''
+         Pour le debocage
+        '''
+        print("-----------------------------------------------------------------------------------------------")
+        print(f">>> reponses status: {reponses.status_code}")
+        print("--------------------------------------------------------------------------------------------------")
+
+        print(f">>> reponses brute: {reponses.text}")
+        print("-------------------------------------------------------------------------------------------------")
+
+        if isintance(reponse.get("error"), list) and len(reponse.get("error")) > 0:
+            raise HTTPException(status_code=404, detail="probleme coté server api de kraken dans"
+                                                        " la recuperation de la donnée")
+        if reponse.get("result"):
+            couple_crypto= list(reponse.get("result").keys())[0]
+
+            """
+            élaboration d'un dictionnaire dynamique, c'est à dire grandisant en fonction de la taille de la dimension
+            que prendra la donnée, il est crée ce dictionnaire pour bien strucutrer la donnée toute les valeur d'une dimension 
+            est mise dans une unique liste pour faciliter les manipulation future avec spark
+            DIMENSION : (timetamp, bids(meilleur prix vente), asks(meilleur prix achat))
+            """
+            taille_dimension = len(list(reponse.get("result").get(couple_crypto))[0])
+            dictionnaire_spread={str(i): [] for i in range(taille_dimension)}
+
+            for liste_data in reponse.get("result").get(couple_crypto):
+                for index, valeur in enumerate(liste_data):
+                    dictionnaire_spread[str(index)].append(float(valeur))
+
+        """
+        Validation de la données avec pydantic
+        
+        """
+        # Récupearion des listes contenant les données
+        temps= dictionnaire_spread.get("0")
+        bid= dictionnaire_spread.get("1")
+        ask= dictionnaire_spread.get("2")
+
+        instance_data_spread_object= data_spread_object(
+            couple_crypto= couple_crypto,
+            temps=temps,
+            bid=bid,
+            ask=ask
+        )
+
+        instance_data_spread_final= data_spread_final(
+            Data_endpoint_spread= instance_data_spread_object
+        )
+        return instance_data_spread_final.model_dump()
+
     except requests.exceptions.RequestException as e:
         str(f"{e}")
 
